@@ -6,21 +6,43 @@ import math
 
 def load_data(data_dir):
     dfs = {}
-    try:
-        dfs["part_data"] = pd.read_csv(os.path.join(data_dir, "PartData.csv"))
-        dfs["policies"] = pd.read_csv(os.path.join(data_dir, "policies.csv"))
-        dfs["part_policy_data"] = pd.read_csv(os.path.join(data_dir, "part_policy_data.csv"))
-        dfs["cells"] = pd.read_csv(os.path.join(data_dir, "cells.csv"))
-        dfs["stations"] = pd.read_csv(os.path.join(data_dir, "stations.csv"))
-        dfs["cell_station_distances"] = pd.read_csv(os.path.join(data_dir, "cell_station_distances.csv"))
-        dfs["parameters"] = pd.read_csv(os.path.join(data_dir, "parameters.csv"))
-        dfs["vehicles"] = pd.read_csv(os.path.join(data_dir, "vehicles.csv"))
-        dfs["transport_times"] = pd.read_csv(os.path.join(data_dir, "transport_times.csv"))
-        dfs["kit_times"] = pd.read_csv(os.path.join(data_dir, "kit_times.csv"))
-        dfs["tk_times"] = pd.read_csv(os.path.join(data_dir, "tk_times.csv"))
-        dfs["transport_route"] = pd.read_csv(os.path.join(data_dir, "TransportRoute.csv"))
-    except Exception as e:
-        print(f"Error loading data: {e}")
+    expected_files = [
+        "LayoutCells.csv",
+        "LayoutLimits.csv",
+        "LayoutWarehouse.csv",
+        "LayoutWorkstations.csv",
+        "LinestockingRoute.csv",
+        "LinestockingRouteStations.csv",
+        "other parameters.csv",
+        "PartData.csv",
+        "policies.csv",
+        "ReplenishmentRoute.csv",
+        "ReplenishmentRouteCells.csv",
+        "strategic_layout_output.csv",
+        "strategic_overview.csv",
+        "TransportRoute.csv",
+        "TransportRouteCells.csv",
+        "TransportRouteStations.csv",
+        "vehicles strategic.csv",
+        "vehicles.csv",
+        # Including legacy dummy names temporarily to prevent breaking any existing logic
+        "part_policy_data.csv", "cells.csv", "stations.csv", "cell_station_distances.csv",
+        "parameters.csv", "transport_times.csv", "kit_times.csv", "tk_times.csv"
+    ]
+    for file in expected_files:
+        filepath = os.path.join(data_dir, file)
+        if os.path.exists(filepath):
+            # Key will be the filename without .csv
+            key = file.replace(".csv", "")
+            try:
+                dfs[key] = pd.read_csv(filepath)
+            except Exception as e:
+                print(f"Error loading {file}: {e}")
+
+    # To keep backward compatibility with existing model mapping in the script:
+    if "PartData" in dfs: dfs["part_data"] = dfs["PartData"]
+    if "TransportRoute" in dfs: dfs["transport_route"] = dfs["TransportRoute"]
+
     return dfs
 
 def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="output"):
