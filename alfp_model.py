@@ -53,7 +53,7 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
     P = data_dict["policies"]['p'].unique().tolist() if "policies" in data_dict else []
     C = data_dict["cells"]['c'].unique().tolist() if "cells" in data_dict else []
     W = data_dict["stations"]['w'].unique().tolist() if "stations" in data_dict else []
-    V = data_dict["vehicles"]['v'].unique().tolist() if "vehicles" in data_dict else []
+    V = data_dict["vehicles"]['vehicle_id'].unique().tolist() if "vehicles" in data_dict else []
     F_all = data_dict["part_data"]['f'].unique().tolist() if "part_data" in data_dict else []
     F = [f for f in F_all if str(f) != 'None' and str(f) != 'nan'] # exclude 'None' and nan family
 
@@ -65,7 +65,10 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
     F_w = {w: [f for f in list(set(data_dict["part_data"][data_dict["part_data"]['w'] == w]['f'].tolist()) & set(F)) if len(I_f[f]) > 0] for w in W}
 
     # Parameters
-    n_v = dict(zip(data_dict["vehicles"]['v'], data_dict["vehicles"]['n_v'])) if "vehicles" in data_dict else {}
+    # Map number of available vehicles n_v
+    n_v = {}
+    if "vehicles" in data_dict:
+        n_v = dict(zip(data_dict["vehicles"]['vehicle_id'], data_dict["vehicles"]['number_of_vehicles']))
     T = 480
     M_big = 10000 # Big M
     if "parameters" in data_dict:
@@ -337,8 +340,9 @@ def apply_fleet_reduction(data_dict, vehicle_type, reduction_amount):
     new_dict = {k: v.copy() for k, v in data_dict.items()}
     if "vehicles" in new_dict:
         vehs = new_dict["vehicles"]
-        mask = vehs['v'] == vehicle_type
-        vehs.loc[mask, 'n_v'] = np.maximum(0, vehs.loc[mask, 'n_v'] - reduction_amount)
+        mask = vehs['vehicle_id'] == vehicle_type
+        if 'number_of_vehicles' in vehs.columns:
+            vehs.loc[mask, 'number_of_vehicles'] = np.maximum(0, vehs.loc[mask, 'number_of_vehicles'] - reduction_amount)
     return new_dict
 
 def apply_congestion_penalty(data_dict, penalty_factor):
