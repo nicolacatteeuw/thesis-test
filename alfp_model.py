@@ -54,33 +54,95 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
     os.makedirs(output_dir, exist_ok=True)
 
     # 1. Sets Extraction
-    I = data_dict["part_data"]['i'].unique().tolist() if "part_data" in data_dict else []
-    P = data_dict["policies"]['p'].unique().tolist() if "policies" in data_dict else []
-    C = data_dict["cells"]['c'].unique().tolist() if "cells" in data_dict else []
-    W = data_dict["stations"]['w'].unique().tolist() if "stations" in data_dict else []
-    V = data_dict["vehicles"]['vehicle_id'].unique().tolist() if "vehicles" in data_dict else []
-    F_all = data_dict["part_data"]['f'].unique().tolist() if "part_data" in data_dict else []
+    I = []
+    if "part_data" in data_dict:
+        part_col = 'i' if 'i' in data_dict["part_data"].columns else 'Partnumber'
+        if part_col in data_dict["part_data"].columns:
+            I = data_dict["part_data"][part_col].unique().tolist()
+
+    P = []
+    if "policies" in data_dict:
+        p_col = 'p' if 'p' in data_dict["policies"].columns else 'Policy'
+        if p_col in data_dict["policies"].columns:
+            P = data_dict["policies"][p_col].unique().tolist()
+    C = []
+    if "LayoutCells" in data_dict:
+        c_col = 'c' if 'c' in data_dict["LayoutCells"].columns else 'Cell'
+        if c_col in data_dict["LayoutCells"].columns:
+            C = data_dict["LayoutCells"][c_col].unique().tolist()
+
+    W = []
+    if "LayoutWorkstations" in data_dict:
+        w_col = 'w' if 'w' in data_dict["LayoutWorkstations"].columns else 'Station'
+        if w_col in data_dict["LayoutWorkstations"].columns:
+            W = data_dict["LayoutWorkstations"][w_col].unique().tolist()
+
+    V = []
+    if "vehicles" in data_dict:
+        v_col = 'vehicle_id' if 'vehicle_id' in data_dict["vehicles"].columns else 'Vehicle'
+        if v_col in data_dict["vehicles"].columns:
+            V = data_dict["vehicles"][v_col].unique().tolist()
+
+    F_all = []
+    if "part_data" in data_dict:
+        f_col = 'f' if 'f' in data_dict["part_data"].columns else 'Part_family'
+        if f_col in data_dict["part_data"].columns:
+            F_all = data_dict["part_data"][f_col].unique().tolist()
+
     F = [f for f in F_all if str(f) != 'None' and str(f) != 'nan'] # exclude 'None' and nan family
 
     # Map parts to families and stations
-    I_f = {f: data_dict["part_data"][data_dict["part_data"]['f'] == f]['i'].tolist() for f in F}
-    I_w = {w: data_dict["part_data"][data_dict["part_data"]['w'] == w]['i'].tolist() for w in W}
+    I_f = {}
+    I_w = {}
+    F_w = {}
 
-    # F_w: Families that have parts in station w
-    F_w = {w: [f for f in list(set(data_dict["part_data"][data_dict["part_data"]['w'] == w]['f'].tolist()) & set(F)) if len(I_f[f]) > 0] for w in W}
+    if "part_data" in data_dict:
+        part_col = 'i' if 'i' in data_dict["part_data"].columns else 'Partnumber'
+        f_col = 'f' if 'f' in data_dict["part_data"].columns else 'Part_family'
+        w_col = 'w' if 'w' in data_dict["part_data"].columns else 'Station'
+
+        for f in F:
+            I_f[f] = data_dict["part_data"][data_dict["part_data"][f_col] == f][part_col].tolist()
+
+        for w in W:
+            if w_col in data_dict["part_data"].columns:
+                I_w[w] = data_dict["part_data"][data_dict["part_data"][w_col] == w][part_col].tolist()
+            else:
+                I_w[w] = []
+
+        for w in W:
+            if w_col in data_dict["part_data"].columns:
+                f_in_w = data_dict["part_data"][data_dict["part_data"][w_col] == w][f_col].tolist()
+                F_w[w] = [f for f in list(set(f_in_w) & set(F)) if len(I_f.get(f, [])) > 0]
+            else:
+                F_w[w] = []
 
     # Parameters
     # Map number of available vehicles n_v
     n_v = {}
     if "vehicles" in data_dict:
-        n_v = dict(zip(data_dict["vehicles"]['vehicle_id'], data_dict["vehicles"]['number_of_vehicles']))
+        v_col = 'vehicle_id' if 'vehicle_id' in data_dict["vehicles"].columns else 'Vehicle'
+        num_col = 'number_of_vehicles' if 'number_of_vehicles' in data_dict["vehicles"].columns else 'Number_of_vehicles'
+        if v_col in data_dict["vehicles"].columns and num_col in data_dict["vehicles"].columns:
+            n_v = dict(zip(data_dict["vehicles"][v_col], data_dict["vehicles"][num_col]))
     T = 480
     M_big = 10000 # Big M
-    if "parameters" in data_dict:
+    # In user files, "other parameters" seems to be the parameters file.
+    if "other parameters" in data_dict:
+        param_df = data_dict["other parameters"]
+        p_col = 'param' if 'param' in param_df.columns else 'Parameter'
+        v_col = 'value' if 'value' in param_df.columns else 'Value'
+        if p_col in param_df.columns and v_col in param_df.columns and "T" in param_df[p_col].values:
+            T = float(param_df[param_df[p_col] == 'T'][v_col].values[0])
+    elif "parameters" in data_dict:
         param_df = data_dict["parameters"]
-        if "T" in param_df['param'].values:
+        if "param" in param_df.columns and "T" in param_df['param'].values:
             T = float(param_df[param_df['param'] == 'T']['value'].values[0])
 
+    # Transport times logic, fallback to new user files.
+    # The actual transport times likely have to be mapped from ReplenishmentRoute or TransportRoute,
+    # but since we lack the exact definition of 't_Re', 't_Tr', 't_SK', 't_TK' in those CSVs, we use
+    # dictionary fallback logic.
     t_Re = {}
     t_Tr = {}
     if "transport_times" in data_dict:
@@ -99,8 +161,19 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
             t_TK[(row['c'], row['v'])] = row['t_TK']
 
     # BoL capacity and Space parameters
-    k_C_c = dict(zip(data_dict["cells"]['c'], data_dict["cells"]['L_c_cell'])) if "cells" in data_dict else {}
-    k_W_w = dict(zip(data_dict["stations"]['w'], data_dict["stations"]['L_w_BoL'])) if "stations" in data_dict else {}
+    k_C_c = {}
+    if "LayoutCells" in data_dict:
+        c_col = 'c' if 'c' in data_dict["LayoutCells"].columns else 'Cell'
+        cap_col = 'L_c_cell' if 'L_c_cell' in data_dict["LayoutCells"].columns else 'Capacity'
+        if c_col in data_dict["LayoutCells"].columns and cap_col in data_dict["LayoutCells"].columns:
+            k_C_c = dict(zip(data_dict["LayoutCells"][c_col], data_dict["LayoutCells"][cap_col]))
+
+    k_W_w = {}
+    if "LayoutWorkstations" in data_dict:
+        w_col = 'w' if 'w' in data_dict["LayoutWorkstations"].columns else 'Station'
+        cap_col = 'L_w_BoL' if 'L_w_BoL' in data_dict["LayoutWorkstations"].columns else 'Capacity'
+        if w_col in data_dict["LayoutWorkstations"].columns and cap_col in data_dict["LayoutWorkstations"].columns:
+            k_W_w = dict(zip(data_dict["LayoutWorkstations"][w_col], data_dict["LayoutWorkstations"][cap_col]))
 
     # Dummy parameters for capacity constraints (fallback to 1 if not provided)
     k_P_L = {i: 1 for i in I}
@@ -319,11 +392,16 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
 
 def apply_skill_multiplier(data_dict, S, target_cell):
     new_dict = {k: v.copy() for k, v in data_dict.items()}
-    if "parameters" in new_dict:
-        params = new_dict["parameters"]
-        if 'OV' in params['param'].values:
-            ov_idx = params.index[params['param'] == 'OV'][0]
-            params.at[ov_idx, 'value'] = float(params.at[ov_idx, 'value']) / S
+
+    param_key = "other parameters" if "other parameters" in new_dict else "parameters"
+    if param_key in new_dict:
+        params = new_dict[param_key]
+        p_col = 'param' if 'param' in params.columns else 'Parameter'
+        v_col = 'value' if 'value' in params.columns else 'Value'
+
+        if p_col in params.columns and 'OV' in params[p_col].values:
+            ov_idx = params.index[params[p_col] == 'OV'][0]
+            params.at[ov_idx, v_col] = float(params.at[ov_idx, v_col]) / S
 
     if "policies" in new_dict:
         pols = new_dict["policies"]
@@ -346,9 +424,12 @@ def apply_fleet_reduction(data_dict, vehicle_type, reduction_amount):
     new_dict = {k: v.copy() for k, v in data_dict.items()}
     if "vehicles" in new_dict:
         vehs = new_dict["vehicles"]
-        mask = vehs['vehicle_id'] == vehicle_type
-        if 'number_of_vehicles' in vehs.columns:
-            vehs.loc[mask, 'number_of_vehicles'] = np.maximum(0, vehs.loc[mask, 'number_of_vehicles'] - reduction_amount)
+        v_col = 'vehicle_id' if 'vehicle_id' in vehs.columns else 'Vehicle'
+        num_col = 'number_of_vehicles' if 'number_of_vehicles' in vehs.columns else 'Number_of_vehicles'
+
+        if v_col in vehs.columns and num_col in vehs.columns:
+            mask = vehs[v_col] == vehicle_type
+            vehs.loc[mask, num_col] = np.maximum(0, vehs.loc[mask, num_col] - reduction_amount)
     return new_dict
 
 def apply_congestion_penalty(data_dict, penalty_factor):
