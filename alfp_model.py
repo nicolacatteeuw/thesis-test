@@ -29,15 +29,20 @@ def load_data(data_dir):
         "part_policy_data.csv", "cells.csv", "stations.csv", "cell_station_distances.csv",
         "parameters.csv", "transport_times.csv", "kit_times.csv", "tk_times.csv"
     ]
+    loaded_count = 0
     for file in expected_files:
         filepath = os.path.join(data_dir, file)
         if os.path.exists(filepath):
-            # Key will be the filename without .csv
             key = file.replace(".csv", "")
             try:
                 dfs[key] = pd.read_csv(filepath)
+                loaded_count += 1
             except Exception as e:
                 print(f"Error loading {file}: {e}")
+
+    print(f"Successfully loaded {loaded_count} out of {len(expected_files)} expected CSV files from the '{data_dir}' directory.")
+    if loaded_count == 0:
+        print(f"WARNING: No CSV files were found in the '{os.path.abspath(data_dir)}' directory. Please ensure your CSV files are placed inside a folder named '{data_dir}'.")
 
     # To keep backward compatibility with existing model mapping in the script:
     if "PartData" in dfs: dfs["part_data"] = dfs["PartData"]
@@ -293,6 +298,7 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
         model.solve(pulp.PULP_CBC_CMD(msg=False))
 
     obj_val = pulp.value(model.objective)
+    status_str = pulp.LpStatus[model.status]
 
     # Save results
     results = []
@@ -309,7 +315,7 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline", output_dir="ou
     res_df = pd.DataFrame(results)
     res_df.to_csv(os.path.join(output_dir, f"{scenario_name}_results.csv"), index=False)
 
-    return model, res_df, obj_val
+    return model, res_df, obj_val, status_str
 
 def apply_skill_multiplier(data_dict, S, target_cell):
     new_dict = {k: v.copy() for k, v in data_dict.items()}
@@ -360,23 +366,23 @@ def main():
     data_dict = load_data('data')
 
     print("Running Baseline Model...")
-    baseline_model, baseline_res, baseline_obj = build_and_solve_baseline(data_dict, scenario_name="baseline")
-    print(f"Baseline Objective: {baseline_obj}")
+    baseline_model, baseline_res, baseline_obj, baseline_status = build_and_solve_baseline(data_dict, scenario_name="baseline")
+    print(f"Baseline Status: {baseline_status} | Objective: {baseline_obj}")
 
     print("Running Scenario A: Operator Unavailability...")
     data_scen_a = apply_skill_multiplier(data_dict, S=1.3, target_cell='C1')
-    model_a, res_a, obj_a = build_and_solve_baseline(data_scen_a, scenario_name="scenario_A")
-    print(f"Scenario A Objective: {obj_a}")
+    model_a, res_a, obj_a, status_a = build_and_solve_baseline(data_scen_a, scenario_name="scenario_A")
+    print(f"Scenario A Status: {status_a} | Objective: {obj_a}")
 
     print("Running Scenario B1: Fleet Reduction...")
     data_scen_b1 = apply_fleet_reduction(data_dict, vehicle_type='V1', reduction_amount=1)
-    model_b1, res_b1, obj_b1 = build_and_solve_baseline(data_scen_b1, scenario_name="scenario_B1")
-    print(f"Scenario B1 Objective: {obj_b1}")
+    model_b1, res_b1, obj_b1, status_b1 = build_and_solve_baseline(data_scen_b1, scenario_name="scenario_B1")
+    print(f"Scenario B1 Status: {status_b1} | Objective: {obj_b1}")
 
     print("Running Scenario B2: Congestion Penalty...")
     data_scen_b2 = apply_congestion_penalty(data_dict, penalty_factor=1.2)
-    model_b2, res_b2, obj_b2 = build_and_solve_baseline(data_scen_b2, scenario_name="scenario_B2")
-    print(f"Scenario B2 Objective: {obj_b2}")
+    model_b2, res_b2, obj_b2, status_b2 = build_and_solve_baseline(data_scen_b2, scenario_name="scenario_B2")
+    print(f"Scenario B2 Status: {status_b2} | Objective: {obj_b2}")
 
 if __name__ == "__main__":
     main()
