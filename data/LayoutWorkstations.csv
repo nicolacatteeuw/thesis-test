@@ -1,0 +1,4 @@
+WSid,WSName,XcoordStart,YcoordStart,XcoordEnd,YcoordEnd,XcoordCenter,YcoordCenter,HeightCapacity,BoL_capacity
+0,ws1,47,25,49.5,29,47,27,3,2
+1,ws2,47,15,49.5,19,47,17,3,2
+2,ws3,47,5,49.5,9,47,7,3,2

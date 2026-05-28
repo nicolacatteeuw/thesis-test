@@ -1,0 +1,8 @@
+variable_name,value,unit,description
+wage_logistic,25.0,Euro/hour,wage of a logistic operator
+wage_assembly,40.0,Euro/hour,wage of an assembly operator
+walking_velocity,3600.0,m/h,Walking velocity of an operato
+total_demand,175.0,,total demand for end products
+moving_cost,10.0,Euro/time horizon,cost for moving tr kit along the line
+takt_time,0.166666667,h,
+ShelvesPerReck,4.0,,number of boxes that can fit in one rack

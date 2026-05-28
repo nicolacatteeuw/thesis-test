@@ -1,0 +1,8 @@
+Cell,XcoordStart,YcoordStart,XcoordEnd,YcoordEnd,Size,LastBlock,Policy
+1,30,14,36,18,11,20,kit
+2,32,22,36,26,7,10,sequencing boxed
+3,16,22,18,26,3,3,supply
+4,18,22,20,26,3,4,sequencing boxed
+5,14,22,16,26,3,2,supply boxed
+6,14,14,16,18,3,12,supply boxed
+7,12,22,14,26,3,1,supply
