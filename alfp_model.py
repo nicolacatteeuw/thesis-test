@@ -134,6 +134,8 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline"):
     # Objective Function 1.1: Cost = C_Re + C_P + C_T + C_U
     obj_terms = []
 
+    policies_df = data_dict["policies_df"]
+
     for i in I:
         row_i = part_df[part_df["Partnumber"] == i].iloc[0]
         lamb_i = float(row_i["Demand"])
@@ -141,9 +143,21 @@ def build_and_solve_baseline(data_dict, scenario_name="baseline"):
         wgt_i = float(row_i["Part_weight"]) if "Part_weight" in part_df.columns else 0.1
         parts_in_fam = len(I_f[row_i["Part_family"]])
 
+        d_iw = get_param("d_iw", 5.0)
+
         for p in P:
-            d_iw = 5.0
             st_U_p = 1.0
+            if 'search time Usage (h)' in policies_df.columns:
+                try:
+                    # Match p to policy name or id, p is 'LS', 'BS', etc.
+                    # We map them conceptually to rows
+                    policy_map = {'LS': 1, 'BS': 2, 'Seq': 3, 'SK': 4, 'TK': 4}
+                    pid = policy_map.get(p, 1)
+                    val = policies_df[policies_df['policy_id'] == pid]['search time Usage (h)'].iloc[0]
+                    st_U_p = float(val)
+                except:
+                    pass
+
             # Cost C_U formula
             c_u = wage_assembly * lamb_i * (2 * d_iw / walking_velocity + st_U_p * (parts_in_fam - 1))
             obj_terms.append(c_u * PX[i, p])
@@ -348,9 +362,10 @@ def main():
     status_A, obj_A, res_A = build_and_solve_baseline(data_scenA, scenario_name="scenarioA")
     print(f"Scenario A Status: {status_A}, Objective Value: {obj_A}")
 
-    print("\n--- Running Scenario B1: Hard Breakdown (Reduce Forklifts by 20) ---")
+    print("\n--- Running Scenario B1: Hard Breakdown (Reduce Vehicles by 1) ---")
     data_scenB1 = original_data.copy()
-    data_scenB1["vehicles_df"] = apply_fleet_reduction(data_scenB1["vehicles_df"], vehicle_type=1, reduction_amount=20)
+    vehicle_to_reduce = data_scenB1["vehicles_df"]['vehicle_id'].iloc[0] if not data_scenB1["vehicles_df"].empty else 'V1'
+    data_scenB1["vehicles_df"] = apply_fleet_reduction(data_scenB1["vehicles_df"], vehicle_type=vehicle_to_reduce, reduction_amount=1)
     status_B1, obj_B1, res_B1 = build_and_solve_baseline(data_scenB1, scenario_name="scenarioB1")
     print(f"Scenario B1 Status: {status_B1}, Objective Value: {obj_B1}")
 
